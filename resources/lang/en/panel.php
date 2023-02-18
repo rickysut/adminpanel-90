@@ -1,5 +1,5 @@
 <?php
 
 return [
-    'site_title' => 'Simevi8',
+    'site_title' => 'Admin Panel',
 ];

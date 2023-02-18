@@ -40,6 +40,8 @@ class PermissionsController extends Controller
             ));
             });
 
+            
+
             $table->editColumn('title', function ($row) {
                 return $row->title ? $row->title : '';
             });
@@ -47,20 +49,32 @@ class PermissionsController extends Controller
                 return $row->perm_type ? Permission::PERM_TYPE_SELECT[$row->perm_type] : '';
             });
             $table->editColumn('grp_title', function ($row) {
-                return $row->grp_title ? Permission::GRP_TITLE_SELECT[$row->grp_title] : '';
+                $grpTitle = trans('cruds');
+                $out = '';
+                foreach($grpTitle as $key => $label){
+                    if ($label['title'] == $row->grp_title){
+                        $out = $label['title']; 
+                        break;  
+                    }
+                }
+                
+                return $row->grp_title ? $out : '';
             });
 
             $table->rawColumns(['actions', 'placeholder']);
 
             return $table->make(true);
         }
-
+        // $breadcrumb = trans('cruds.permission.title_singular') ." ". trans('global.list');
         return view('admin.permissions.index');
     }
 
     public function create()
     {
         abort_if(Gate::denies('permission_create'), Response::HTTP_FORBIDDEN, '403 Forbidden');
+        $grpTitle = trans('cruds');
+        // $breadcrumb = trans('global.create') ." ". trans('cruds.permission.title_singular');
+        return view('admin.permissions.create', compact( 'grpTitle'));
 
         return view('admin.permissions.create');
     }
@@ -75,8 +89,9 @@ class PermissionsController extends Controller
     public function edit(Permission $permission)
     {
         abort_if(Gate::denies('permission_edit'), Response::HTTP_FORBIDDEN, '403 Forbidden');
-
-        return view('admin.permissions.edit', compact('permission'));
+        $grpTitle = trans('cruds');
+        // $breadcrumb = trans('global.edit') ." ". trans('cruds.permission.title_singular');
+        return view('admin.permissions.edit', compact('permission', 'grpTitle'));
     }
 
     public function update(UpdatePermissionRequest $request, Permission $permission)

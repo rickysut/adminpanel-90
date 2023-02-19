@@ -15,110 +15,98 @@ use Yajra\DataTables\Facades\DataTables;
 
 class RolesController extends Controller
 {
-    public function index(Request $request)
-    {
-        abort_if(Gate::denies('role_access'), Response::HTTP_FORBIDDEN, '403 Forbidden');
+	public function index(Request $request)
+	{
+		abort_if(Gate::denies('role_access'), Response::HTTP_FORBIDDEN, '403 Forbidden');
 
-        if ($request->ajax()) {
-            $query = Role::with(['permissions'])->select(sprintf('%s.*', (new Role())->table));
-            $table = Datatables::of($query);
+		if ($request->ajax()) {
+			$roles = Role::with('permissions')->get();
 
-            $table->addColumn('placeholder', '&nbsp;');
-            $table->addColumn('actions', '&nbsp;');
+			return DataTables::of($roles)
+				->addColumn('permissions', function (Role $role) {
+					return $role->permissions->pluck('title')->implode(', ');
+				})
+				->addColumn('action', function (Role $role) {
+					return '
+					<div class="d-flex flex flex-row justify-content-center">
+						<a href="' . route('admin.roles.show', $role->id) . '" class="mr-5 btn btn-sm btn-icon btn-primary" title="' . trans('global.view') . '">
+							<i class="fal fa-eye"></i>
+						</a>
+                        <a href="' . route('admin.roles.edit', $role->id) . '" class="mr-2 btn btn-sm btn-info btn-icon" title="' . trans('global.edit') . '">
+							<i class="fal fa-edit"></i>
+						</a>
+                        <form action="' . route('admin.roles.destroy', $role->id) . '" method="POST" onsubmit="return confirm(\'' . trans('global.areYouSure') . '\');" style="display: inline-block;">
+                            <input type="hidden" name="_method" value="DELETE">
+                            <input type="hidden" name="_token" value="' . csrf_token() . '">
+							<button class="ml-1 btn btn-sm btn-danger btn-icon" type="submit"><i class="fal fa-trash"></i></button>
+                        </form>
+					</div>';
+				})
+				->rawColumns(['action'])
+				->make(true);
+		}
 
-            $table->editColumn('actions', function ($row) {
-                $viewGate = 'role_show';
-                $editGate = 'role_edit';
-                $deleteGate = 'role_delete';
-                $crudRoutePart = 'roles';
+		return view('admin.roles.index');
+	}
 
-                return view('partials.datatablesActions', compact(
-                'viewGate',
-                'editGate',
-                'deleteGate',
-                'crudRoutePart',
-                'row'
-            ));
-            });
+	public function create()
+	{
+		abort_if(Gate::denies('role_create'), Response::HTTP_FORBIDDEN, '403 Forbidden');
 
-            $table->editColumn('title', function ($row) {
-                return $row->title ? $row->title : '';
-            });
-            $table->editColumn('permissions', function ($row) {
-                $labels = [];
-                foreach ($row->permissions as $permission) {
-                    $labels[] = sprintf('<span class="label label-info label-many">%s</span>', $permission->title);
-                }
+		$permissions = Permission::pluck('title', 'id');
 
-                return implode(' ', $labels);
-            });
+		return view('admin.roles.create', compact('permissions'));
+	}
 
-            $table->rawColumns(['actions', 'placeholder', 'permissions']);
+	public function store(StoreRoleRequest $request)
+	{
+		$role = Role::create($request->all());
+		$role->permissions()->sync($request->input('permissions', []));
 
-            return $table->make(true);
-        }
+		return redirect()->route('admin.roles.index');
+	}
 
-        return view('admin.roles.index');
-    }
+	public function edit(Role $role)
+	{
+		abort_if(Gate::denies('role_edit'), Response::HTTP_FORBIDDEN, '403 Forbidden');
 
-    public function create()
-    {
-        abort_if(Gate::denies('role_create'), Response::HTTP_FORBIDDEN, '403 Forbidden');
+		$permissions = Permission::pluck('title', 'id');
 
-        $permissions = Permission::pluck('title', 'id');
+		$role->load('permissions');
 
-        return view('admin.roles.create', compact('permissions'));
-    }
+		return view('admin.roles.edit', compact('permissions', 'role'));
+	}
 
-    public function store(StoreRoleRequest $request)
-    {
-        $role = Role::create($request->all());
-        $role->permissions()->sync($request->input('permissions', []));
+	public function update(UpdateRoleRequest $request, Role $role)
+	{
+		$role->update($request->all());
+		$role->permissions()->sync($request->input('permissions', []));
 
-        return redirect()->route('admin.roles.index');
-    }
+		return redirect()->route('admin.roles.index');
+	}
 
-    public function edit(Role $role)
-    {
-        abort_if(Gate::denies('role_edit'), Response::HTTP_FORBIDDEN, '403 Forbidden');
+	public function show(Role $role)
+	{
+		abort_if(Gate::denies('role_show'), Response::HTTP_FORBIDDEN, '403 Forbidden');
 
-        $permissions = Permission::pluck('title', 'id');
+		$role->load('permissions');
 
-        $role->load('permissions');
+		return view('admin.roles.show', compact('role'));
+	}
 
-        return view('admin.roles.edit', compact('permissions', 'role'));
-    }
+	public function destroy(Role $role)
+	{
+		abort_if(Gate::denies('role_delete'), Response::HTTP_FORBIDDEN, '403 Forbidden');
 
-    public function update(UpdateRoleRequest $request, Role $role)
-    {
-        $role->update($request->all());
-        $role->permissions()->sync($request->input('permissions', []));
+		$role->delete();
 
-        return redirect()->route('admin.roles.index');
-    }
+		return back();
+	}
 
-    public function show(Role $role)
-    {
-        abort_if(Gate::denies('role_show'), Response::HTTP_FORBIDDEN, '403 Forbidden');
+	public function massDestroy(MassDestroyRoleRequest $request)
+	{
+		Role::whereIn('id', request('ids'))->delete();
 
-        $role->load('permissions');
-
-        return view('admin.roles.show', compact('role'));
-    }
-
-    public function destroy(Role $role)
-    {
-        abort_if(Gate::denies('role_delete'), Response::HTTP_FORBIDDEN, '403 Forbidden');
-
-        $role->delete();
-
-        return back();
-    }
-
-    public function massDestroy(MassDestroyRoleRequest $request)
-    {
-        Role::whereIn('id', request('ids'))->delete();
-
-        return response(null, Response::HTTP_NO_CONTENT);
-    }
+		return response(null, Response::HTTP_NO_CONTENT);
+	}
 }
